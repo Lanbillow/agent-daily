@@ -1,0 +1,67 @@
+# 09:00 每日任务：采集 GitHub 热门项目 + 中文摘要 + 生成快报
+job: github_trending
+schedule: "09:00"
+model: local
+
+workflow:
+  steps:
+    # 1. 采集热榜
+    - id: collect
+      type: tool
+      tool: github_trending
+      args:
+        since: daily
+        limit: 10
+
+    # 2. 保存原始数据工件
+    - id: save_raw
+      type: artifact
+      action: save
+      name: trending_raw
+      artifact_type: json
+      date: ${date}
+      content: ${collect}
+
+    # 3. 逐条中文摘要（batch：对 collect 列表逐项渲染 summarize_repo）
+    - id: summarize
+      type: model
+      prompt: summarize_repo
+      batch: true
+      input: ${collect}
+      result_key: summary
+      map:
+        repo_name: ${item.name}
+        description: ${item.description}
+        language: ${item.language}
+        stars: ${item.stars}
+
+    # 4. 保存摘要工件
+    - id: save_summaries
+      type: artifact
+      action: save
+      name: summaries
+      artifact_type: json
+      date: ${date}
+      content: ${summarize}
+
+    # 5. 组织成快报正文
+    - id: compose
+      type: model
+      prompt: compose_report
+      variables:
+        date: ${date}
+        summaries: ${summarize}
+
+    # 6. 保存报告工件
+    - id: save_report
+      type: artifact
+      action: save
+      name: report
+      artifact_type: markdown
+      date: ${date}
+      content: ${compose}
+
+outputs:
+  - {name: trending_raw, type: json}
+  - {name: summaries, type: json}
+  - {name: report, type: markdown}

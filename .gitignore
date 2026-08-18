@@ -1,0 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Local config / secrets (only *.example is committed)
+config/config.yaml
+config/secrets.env
+
+# Runtime artifacts
+data/
+*.log
+
+# macOS
+.DS_Store

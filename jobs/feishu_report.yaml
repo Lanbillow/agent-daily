@@ -1,0 +1,25 @@
+# 10:00 每日任务：读取报告工件，输出飞书文档（无飞书配置时 fallback 本地文件）
+job: feishu_report
+schedule: "10:00"
+
+workflow:
+  steps:
+    # 1. 读取 09:00 任务生成的报告工件
+    - id: load_report
+      type: artifact
+      action: load
+      name: report
+      artifact_type: markdown
+      date: ${date}
+
+    # 2. 输出到飞书；未配置飞书时 fallback 到 local_file
+    - id: publish
+      type: output
+      provider: feishu
+      fallback: local_file
+      title: "${date}热点快报"
+      content: ${load_report}
+      key: "${date}热点快报"
+
+inputs:
+  - {name: report, type: markdown}

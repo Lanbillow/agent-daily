@@ -1,0 +1,59 @@
+# Agent Daily 配置文件
+# 复制为 config.yaml 后按需修改（config.yaml 已被 .gitignore 排除）
+
+timezone: Asia/Shanghai                     # UTC+8
+
+# ── 模型执行 ──────────────────────────────────────────────
+model:
+  primary: local                            # 固定默认：本地 MLX
+  fallback: deepseek                        # 备用：DeepSeek API（无 key 自动跳过）
+
+  local:                                    # LocalMLXProvider → 调用 mlxsvc（subprocess）
+    mode: subprocess
+    command: ["uv", "run", "mlxsvc"]
+    cwd: "../mlx-service"                   # mlxsvc 项目目录（相对本仓库根）
+    timeout_seconds: 900
+
+  deepseek:                                 # DeepSeekProvider
+    model: deepseek-chat
+    base_url: https://api.deepseek.com
+    timeout_seconds: 120
+    # api_key 读 secrets.env 的 DEEPSEEK_API_KEY
+
+# ── GitHub 数据源（Source Adapter 切换点）────────────────
+github:
+  source:
+    provider: mirror                        # official | mirror
+  timeout_seconds: 30
+  providers:
+    official:
+      base_url: https://github.com          # 官方热榜页
+      trending_path: /trending
+      format: html
+    mirror:
+      base_url: ""                          # ★ 自配镜像地址（大陆环境），禁止硬编码
+      trending_path: /trending
+      format: html
+
+# ── 输出（OutputProvider）───────────────────────────────
+output:
+  default: feishu_cli                       # 默认：lark-cli 创建飞书文档
+  local_file:
+    enabled: true
+    dir: data/output
+  feishu:
+    enabled: false                          # 配好密钥后置 true（Open API 方式）
+    folder_token: ""                        # 可选：文档目录 token
+    # app_id / app_secret 读 secrets.env
+  feishu_cli:                               # lark-cli markdown +create（已 OAuth 登录）
+    command: lark-cli
+    timeout_seconds: 120
+
+# ── 存储 ────────────────────────────────────────────────
+storage:
+  data_dir: data
+  processed_dir: data/processed             # 按 {date} 分区
+
+logging:
+  level: INFO
+  dir: data/logs
