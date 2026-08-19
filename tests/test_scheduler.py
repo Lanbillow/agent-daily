@@ -2,6 +2,7 @@ import plistlib
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agent_daily.scheduler import (
     build_plist,
@@ -99,7 +100,8 @@ class TestInstallUninstall(unittest.TestCase):
         tmp, root = self._root_with_jobs()
         try:
             lad = Path(tmp.name) / "launchagents"
-            results = install_jobs(project_dir=root, launch_agents_dir=lad)
+            with patch("agent_daily.scheduler._run", return_value=True):
+                results = install_jobs(project_dir=root, launch_agents_dir=lad)
             self.assertEqual(len(results), 1)
             self.assertEqual(results[0]["job"], "github_trending")
             plist = lad / "com.agent-daily.github-trending.plist"
@@ -113,8 +115,9 @@ class TestInstallUninstall(unittest.TestCase):
         tmp, root = self._root_with_jobs()
         try:
             lad = Path(tmp.name) / "launchagents"
-            install_jobs(project_dir=root, launch_agents_dir=lad)
-            removed = uninstall_jobs(project_dir=root, launch_agents_dir=lad)
+            with patch("agent_daily.scheduler._run", return_value=True):
+                install_jobs(project_dir=root, launch_agents_dir=lad)
+                removed = uninstall_jobs(project_dir=root, launch_agents_dir=lad)
             self.assertEqual(removed, ["github_trending"])
             self.assertFalse((lad / "com.agent-daily.github-trending.plist").exists())
         finally:

@@ -63,16 +63,28 @@ class BaseHttpSource:
 
     def fetch(self, since: str = "daily") -> str:
         url = self._build_url(since)
-        try:
-            resp = self._client.get(url)
-        except httpx.TimeoutException as exc:
-            raise GithubSourceError(f"请求超时：{url}") from exc
-        except httpx.HTTPError as exc:
-            raise GithubSourceError(f"连接失败：{exc}") from exc
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(3):
+            try:
+                resp = self._client.get(url)
+            except httpx.TimeoutException as exc:
+                last_error = exc
+                if attempt < 2:
+                    continue
+                raise GithubSourceError(f"请求超时（已重试 3 次）：{url}") from exc
+            except httpx.HTTPError as exc:
+                last_error = exc
+                if attempt < 2:
+                    continue
+                raise GithubSourceError(f"连接失败（已重试 3 次）：{exc}") from exc
 
-        if resp.status_code != 200:
-            raise GithubSourceError(f"返回 HTTP {resp.status_code}：{url}")
-        return resp.text
+            if resp.status_code == 200:
+                return resp.text
+            if resp.status_code < 500 or attempt == 2:
+                raise GithubSourceError(f"返回 HTTP {resp.status_code}：{url}")
+
+        # Defensive fallback; every loop branch above returns or raises.
+        raise GithubSourceError(f"连接失败（已重试 3 次）：{last_error}")
 
 
 class SourceAdapter:

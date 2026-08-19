@@ -175,6 +175,8 @@ class TestEndToEnd(unittest.TestCase):
         from agent_daily.prompt import PromptManager
         from agent_daily.tools import ToolRegistry
         from agent_daily.tools.github_trending import GithubTrendingTool
+        from agent_daily.tools.report_composer import ReportComposerTool
+        from agent_daily.tools.report_composer import SummaryNormalizerTool
 
         root = Path(__file__).resolve().parents[1]
         spec = JobRegistry(root / "jobs").get("github_trending")
@@ -210,6 +212,8 @@ class TestEndToEnd(unittest.TestCase):
             prompt = PromptManager(root / "prompts")
             tools = ToolRegistry()
             tools.register(GithubTrendingTool(FakeAdapter()))
+            tools.register(ReportComposerTool())
+            tools.register(SummaryNormalizerTool())
             outputs = OutputRegistry()
             outputs.register(LocalFileProvider(base / "output"))
             artifacts = ArtifactStore(base / "processed")
@@ -229,8 +233,8 @@ class TestEndToEnd(unittest.TestCase):
 
             report = artifacts.load("report", "markdown", "2026-08-16")
             self.assertIn("中文摘要内容", report)
-            # 2 次摘要 + 1 次组织 = 3 次模型调用
-            self.assertEqual(model.calls, 3)
+            # 仅逐条摘要调用模型；报告由确定性工具完整组装
+            self.assertEqual(model.calls, 2)
 
 
 if __name__ == "__main__":

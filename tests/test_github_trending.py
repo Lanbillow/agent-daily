@@ -185,6 +185,19 @@ class TestNetworkExceptions(unittest.TestCase):
         with self.assertRaises(GithubSourceError):
             self._source(handler).fetch()
 
+    def test_transient_connection_error_retries(self):
+        attempts = 0
+
+        def handler(request):
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                raise httpx.ConnectError("connection reset")
+            return httpx.Response(200, text="ok")
+
+        self.assertEqual(self._source(handler).fetch(), "ok")
+        self.assertEqual(attempts, 3)
+
 
 class TestParseExceptions(unittest.TestCase):
     def test_parse_html_no_articles_raises(self):

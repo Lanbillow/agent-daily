@@ -119,6 +119,7 @@ def build_agent_factory(
     from ..storage.artifacts import ArtifactStore
     from ..tools.base import ToolRegistry
     from ..tools.github_trending import GithubTrendingTool, SourceAdapter
+    from ..tools.report_composer import ReportComposerTool, SummaryNormalizerTool
 
     root = Path(project_root) if project_root else PROJECT_ROOT
 
@@ -127,6 +128,8 @@ def build_agent_factory(
 
     tools = ToolRegistry()
     tools.register(GithubTrendingTool(SourceAdapter(settings.github)))
+    tools.register(ReportComposerTool())
+    tools.register(SummaryNormalizerTool())
 
     outputs = OutputRegistry()
     outputs.register(LocalFileProvider(root / settings.output.local_file.dir))

@@ -196,3 +196,74 @@ Phase 1（S1–S8 + Phase 1.5）完成，以下链路已验证：
 - ✅ **Feishu CLI document delivery** —— lark-cli markdown +create 输出飞书文档
 
 累计单元测试 120/120 通过。真实 macOS 定时任务装载（launchctl load）需用户本机执行。
+
+---
+
+## Phase 1.5 — Control Plane（Web UI 管理平台）
+
+### Phase 1.5-S1-A — FastAPI 只读后端
+
+**完成内容**
+- `control/repo.py`：只读数据仓储（文件即真相），读 jobs / runs / artifacts / config / logs / scheduler / models
+- `control/api.py`：FastAPI 只读后端，8 组端点
+  - `/api/health` `/api/jobs` `/api/runs` `/api/artifacts` `/api/config` `/api/logs` `/api/scheduler/status` `/api/models`
+- CLI 新增 `agent-daily serve [--host] [--port]`
+- 依赖新增 fastapi / uvicorn
+- secrets 只返回掩码（bool）；日志 tail 带路径穿越防护
+
+**架构变化**
+- 新增 Control Plane 层（只读），Runtime 零改动；只 import 只读/校验模块，不 import 执行模块
+- 确立「文件即真相」：Control Plane 直接读 jobs/*.yaml、config.yaml、data/state、data/processed
+
+**测试结果**
+- control_api 测试 11/11 通过（8 端点 + 路径穿越防护 + 真实数据读取）
+- 累计单元测试 131/131 通过
+- serve 冒烟：`/api/health` `/api/jobs` `/api/models` 正确返回 v0.1.0 数据
+
+### Phase 1.5-S1-B — 最小 Vue Dashboard（只读）
+
+**完成内容**
+- `frontend/`：Vue3 + Vite + TypeScript + Naive UI + Axios + vue-router
+- 三个只读页面：Dashboard（系统状态/任务状态/最近运行）、Jobs（任务列表）、Artifacts（日期选择 + 工件列表 + 内容预览）
+- 所有数据经 HTTP API（`/api/*`）获取；Vite dev 代理 `/api` → 127.0.0.1:8787
+- FastAPI 挂载静态前端（`frontend/dist` 存在时），不改变任何 `/api` 端点
+
+**架构变化**
+- Control Plane 新增静态前端托管；Runtime 与 `/api` 端点零改动；无数据库、无认证、无编辑
+
+**验收结果**
+- `npm install` ✓ / `npm run build` ✓（dist 生成）
+- `uv run agent-daily serve` 后：`/` 返回 index.html、`/assets/*` 静态资源 200、`/api/*` 正常
+- 累计单元测试 131/131 通过（无回归）
+
+### Phase 1.5-S2 — Control Plane 完整观察视图
+
+**完成内容**
+- 前端新增 Runs / Models / Scheduler / Logs / Config 五个页面，接通后端既有只读 API
+- Runs 支持按任务筛选、分页和错误详情查看
+- Models 展示 primary / fallback、启用状态和非敏感模型配置
+- Scheduler 展示 launchd 的实际注册状态；Logs 支持文件选择与最近 200 行查看
+- Config 展示合并后的生效配置，密钥仅显示“已配置/未配置”
+- 侧边导航补齐八个观察入口，并优化窄屏内容区布局
+
+**架构约束**
+- UI 仍为只读观察层，不直接执行 Job、修改配置或加载/卸载 launchd
+- 所有数据继续通过 `/api/*` 获取，保持“文件即真相”和 Runtime 零侵入
+
+**验收结果**
+- Vue/Vite 生产构建通过
+- 后端单元测试 132/132 通过
+
+### Phase 1.6 — 摘要与飞书快报质量修复
+
+**完成内容**
+- Qwen3 推理默认关闭 thinking，避免 `<think>` 内部推理进入摘要工件
+- 收紧单项目 Prompt：一句话、禁止模板化开头、禁止复述语言与 Star、禁止杜撰
+- 新增摘要标准化工具，清理思考标签、通用开头和重复元数据后再保存 summaries
+- 报告改为确定性 Markdown 组装，逐项保留全部项目，不再由 0.6B 模型二次压缩长上下文
+- 自动生成语言分布与最高关注度观察，Star 数统一千分位格式
+
+**修复效果**
+- report 从单条残缺内容恢复为完整 10 条项目
+- summaries 中 `<think>` 与“该项目/本项目/这是一个”模板化开头均清零
+- 模型调用从 11 次降至 10 次，真实运行耗时约 20 秒

@@ -29,30 +29,40 @@ workflow:
       batch: true
       input: ${collect}
       result_key: summary
+      system: "只输出最终的一句中文摘要，不展示分析或思考过程。"
+      max_tokens: 96
+      temperature: 0.0
       map:
         repo_name: ${item.name}
         description: ${item.description}
         language: ${item.language}
         stars: ${item.stars}
 
-    # 4. 保存摘要工件
+    # 4. 清洗模型输出（去思考过程、模板化开头和重复元数据）
+    - id: normalize
+      type: tool
+      tool: normalize_summaries
+      args:
+        items: ${summarize}
+
+    # 5. 保存摘要工件
     - id: save_summaries
       type: artifact
       action: save
       name: summaries
       artifact_type: json
       date: ${date}
-      content: ${summarize}
+      content: ${normalize}
 
-    # 5. 组织成快报正文
+    # 6. 确定性组织快报正文（小模型不再承担长上下文二次生成）
     - id: compose
-      type: model
-      prompt: compose_report
-      variables:
+      type: tool
+      tool: compose_report
+      args:
         date: ${date}
-        summaries: ${summarize}
+        summaries: ${normalize}
 
-    # 6. 保存报告工件
+    # 7. 保存报告工件
     - id: save_report
       type: artifact
       action: save

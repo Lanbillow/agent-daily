@@ -33,6 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
     sched_sub.add_parser("install", help="生成 plist 并 launchctl load")
     sched_sub.add_parser("uninstall", help="launchctl unload 并删除 plist")
     sched_sub.add_parser("status", help="查看任务注册状态")
+
+    serve = sub.add_parser("serve", help="启动 Control Plane（FastAPI 只读后端）")
+    serve.add_argument("--host", default="127.0.0.1", help="监听地址（默认 127.0.0.1）")
+    serve.add_argument("--port", type=int, default=8787, help="端口（默认 8787）")
     return parser
 
 
@@ -56,8 +60,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "scheduler":
         return _cmd_scheduler(args)
 
+    if args.command == "serve":
+        return _cmd_serve(args)
+
     parser.print_help()
     return 2
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from .control.api import create_app
+
+    uvicorn.run(create_app(), host=args.host, port=args.port)
+    return 0
 
 
 def _cmd_config() -> int:

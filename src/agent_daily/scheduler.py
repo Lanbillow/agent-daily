@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -95,6 +96,16 @@ def _run(cmd: list[str]) -> bool:
     return proc.returncode == 0
 
 
+def _launchd_domain() -> str:
+    """Return the current GUI launchd domain."""
+    return f"gui/{os.getuid()}"
+
+
+def _service_loaded(label: str) -> bool:
+    """Check one service directly; ``launchctl list`` can omit idle agents."""
+    return _run(["launchctl", "print", f"{_launchd_domain()}/{label}"])
+
+
 def install_jobs(
     project_dir: str | Path | None = None,
     launch_agents_dir: str | Path | None = None,
@@ -112,7 +123,11 @@ def install_jobs(
         )
         plist_path = lad / plist_filename(job["job"])
         plist_path.write_text(plist_xml, encoding="utf-8")
-        loaded = _run(["launchctl", "load", str(plist_path)])
+        label = job_label(job["job"])
+        domain = _launchd_domain()
+        if _service_loaded(label):
+            _run(["launchctl", "bootout", f"{domain}/{label}"])
+        loaded = _run(["launchctl", "bootstrap", domain, str(plist_path)])
         results.append({
             "job": job["job"],
             "schedule": job["schedule"],
@@ -133,7 +148,8 @@ def uninstall_jobs(
     for job in discover_jobs(root / "jobs"):
         plist_path = lad / plist_filename(job["job"])
         if plist_path.exists():
-            _run(["launchctl", "unload", str(plist_path)])
+            label = job_label(job["job"])
+            _run(["launchctl", "bootout", f"{_launchd_domain()}/{label}"])
             plist_path.unlink(missing_ok=True)
             removed.append(job["job"])
     return removed
@@ -146,13 +162,11 @@ def status(
     """返回每个任务的 {job, schedule, plist_status}。"""
     root = Path(project_dir) if project_dir else PROJECT_ROOT
     lad = Path(launch_agents_dir) if launch_agents_dir else LAUNCH_AGENTS_DIR
-    loaded_labels = _loaded_labels()
-
     results = []
     for job in discover_jobs(root / "jobs"):
         label = job_label(job["job"])
         plist_exists = (lad / plist_filename(job["job"])).exists()
-        if label in loaded_labels:
+        if _service_loaded(label):
             plist_status = "loaded"
         elif plist_exists:
             plist_status = "not-loaded"
@@ -164,10 +178,3 @@ def status(
             "plist_status": plist_status,
         })
     return results
-
-
-def _loaded_labels() -> set[str]:
-    proc = subprocess.run(["launchctl", "list"], capture_output=True, text=True)
-    if proc.returncode != 0:
-        return set()
-    return set(proc.stdout.split())
